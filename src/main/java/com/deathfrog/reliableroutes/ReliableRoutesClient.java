@@ -2,9 +2,10 @@ package com.deathfrog.reliableroutes;
 
 import com.deathfrog.reliableroutes.item.PathfinderLensItem;
 import com.deathfrog.reliableroutes.navigation.WaypointPair;
+import com.deathfrog.reliableroutes.navigation.RoutingZone;
+import com.deathfrog.reliableroutes.navigation.RoutingZoneSnapshot;
 import com.deathfrog.reliableroutes.navigation.WaypointPairDirectionHealth;
 import com.deathfrog.reliableroutes.navigation.WaypointPairDirectionStatus;
-import com.deathfrog.reliableroutes.navigation.WaypointPairSnapshot;
 import com.deathfrog.reliableroutes.network.ClientWaypointPairCache;
 import com.deathfrog.reliableroutes.network.RequestWaypointPairsPayload;
 import com.minecolonies.api.items.ModTags;
@@ -55,7 +56,8 @@ public class ReliableRoutesClient
         private static final int PAIR_SYNC_TICKS = 20;
         private static final double BEAM_HEIGHT = 32.0;
         private static final float INSET = 0.002F;
-        private static final float LANE_OFFSET = 0.14F;
+        private static final float LANE_OFFSET = 0.30F;
+        private static final double STATUS_LANE_HEIGHT = 1.25;
         private static final List<Highlight> CACHE = new ArrayList<>();
         private static final List<BlockPos> WAYPOINTS = new ArrayList<>();
         private static BlockPos cachedCenter;
@@ -163,15 +165,28 @@ public class ReliableRoutesClient
             Minecraft minecraft,
             long gameTime)
         {
-            List<WaypointPairSnapshot> pairs = ClientWaypointPairCache.get();
+            List<RoutingZoneSnapshot> pairs = ClientWaypointPairCache.get();
             Set<Long> pairedEndpoints = new HashSet<>();
             ItemStack lens = minecraft.player.getMainHandItem();
             PathfinderLensItem.PendingWaypoint pending = PathfinderLensItem.getPending(lens);
+            PathfinderLensItem.Draft draft = PathfinderLensItem.getDraft(lens);
             BlockPos pendingPos = pending != null && pending.dimension().equals(minecraft.level.dimension().location()) ? pending.pos() : null;
             float pulse = 0.65F + 0.35F * (float) Math.sin(gameTime * 0.2);
-            for (WaypointPairSnapshot snapshot : pairs)
+            if (draft != null && draft.dimension().equals(minecraft.level.dimension().location()) && draft.secondEndpoint() != null)
             {
-                WaypointPair pair = snapshot.pair();
+                renderWaypoint(poseStack, lines, draft.firstEndpoint(), 0.2F, 0.9F, 1.0F, pulse, true);
+                renderWaypoint(poseStack, lines, draft.secondEndpoint(), 0.2F, 0.9F, 1.0F, pulse, true);
+                renderConnection(poseStack, lines, draft.firstEndpoint(), draft.secondEndpoint(), 0.2F, 0.9F, 1.0F, 0.8F);
+                if (draft.firstCorner() != null && draft.secondCorner() != null)
+                {
+                    renderZone(poseStack, lines, RoutingZone.fromCorners(draft.firstCorner(), draft.secondCorner(),
+                        draft.firstEndpoint(), draft.secondEndpoint()), 0.2F, 0.9F, 1.0F);
+                }
+            }
+            for (RoutingZoneSnapshot snapshot : pairs)
+            {
+                RoutingZone zone = snapshot.zone();
+                WaypointPair pair = zone.pair();
                 pairedEndpoints.add(pair.first().asLong());
                 pairedEndpoints.add(pair.second().asLong());
                 int color = pairColor(pair);
@@ -186,7 +201,9 @@ public class ReliableRoutesClient
                 renderWaypoint(poseStack, lines, pair.second(),
                     secondSelected ? 1.0F : red, secondSelected ? 1.0F : green, secondSelected ? 1.0F : blue,
                     secondSelected ? pulse : 0.9F, true);
-                renderConnection(poseStack, lines, pair.first(), pair.second(), red, green, blue, 0.35F);
+                // The directional lanes below are the authoritative connection display.
+                // A centered undirected line obscures their status colors and arrows.
+                renderZone(poseStack, lines, zone, 0.15F, 0.8F, 1.0F);
                 Vec3 laneOffset = laneOffset(pair.first(), pair.second());
                 renderDirectionalLane(poseStack, lines, pair.first(), pair.second(), laneOffset,
                     snapshot.firstToSecond(), gameTime);
@@ -255,8 +272,8 @@ public class ReliableRoutesClient
             WaypointPairDirectionHealth health,
             long gameTime)
         {
-            Vec3 start = new Vec3(from.getX() + 0.5, from.getY() + 1.35, from.getZ() + 0.5).add(offset);
-            Vec3 end = new Vec3(to.getX() + 0.5, to.getY() + 1.35, to.getZ() + 0.5).add(offset);
+            Vec3 start = new Vec3(from.getX() + 0.5, from.getY() + STATUS_LANE_HEIGHT, from.getZ() + 0.5).add(offset);
+            Vec3 end = new Vec3(to.getX() + 0.5, to.getY() + STATUS_LANE_HEIGHT, to.getZ() + 0.5).add(offset);
             Vec3 direction = end.subtract(start);
             double length = direction.length();
             if (length < 0.001) return;
@@ -266,6 +283,8 @@ public class ReliableRoutesClient
             else side = side.normalize();
 
             float[] color = statusColor(health.status(), gameTime);
+            Vec3 endpointTop = new Vec3(from.getX() + 0.5, from.getY() + 1.05, from.getZ() + 0.5).add(offset);
+            renderLine(poseStack, lines, endpointTop, start, color[0], color[1], color[2], color[3]);
             if (health.status() == WaypointPairDirectionStatus.UNKNOWN)
             {
                 renderDottedLine(poseStack, lines, start, end, color);
@@ -275,6 +294,7 @@ public class ReliableRoutesClient
                 renderLine(poseStack, lines, start, end, color[0], color[1], color[2], color[3]);
             }
 
+            renderArrow(poseStack, lines, start.add(direction.scale(0.10)), unit, side, color);
             renderArrow(poseStack, lines, start.add(direction.scale(0.42)), unit, side, color);
             renderArrow(poseStack, lines, start.add(direction.scale(0.72)), unit, side, color);
             if (health.status() == WaypointPairDirectionStatus.BROKEN)
@@ -346,9 +366,9 @@ public class ReliableRoutesClient
                 || !minecraft.player.getMainHandItem().is(ReliableRoutes.PATHFINDER_LENS.get())
                 || !(minecraft.hitResult instanceof BlockHitResult blockHit)) return;
 
-            WaypointPairSnapshot snapshot = findPair(blockHit.getBlockPos());
+            RoutingZoneSnapshot snapshot = findPair(blockHit.getBlockPos());
             if (snapshot == null) return;
-            boolean lookingAtFirst = snapshot.pair().first().equals(blockHit.getBlockPos());
+            boolean lookingAtFirst = snapshot.zone().firstEndpoint().equals(blockHit.getBlockPos());
             WaypointPairDirectionHealth toPartner = lookingAtFirst ? snapshot.firstToSecond() : snapshot.secondToFirst();
             WaypointPairDirectionHealth fromPartner = lookingAtFirst ? snapshot.secondToFirst() : snapshot.firstToSecond();
             GuiGraphics graphics = event.getGuiGraphics();
@@ -364,13 +384,24 @@ public class ReliableRoutesClient
             graphics.drawString(minecraft.font, inbound, x, y + 20, statusTextColor(fromPartner.status()), true);
         }
 
-        private static WaypointPairSnapshot findPair(BlockPos pos)
+        private static RoutingZoneSnapshot findPair(BlockPos pos)
         {
-            for (WaypointPairSnapshot snapshot : ClientWaypointPairCache.get())
+            for (RoutingZoneSnapshot snapshot : ClientWaypointPairCache.get())
             {
-                if (snapshot.pair().first().equals(pos) || snapshot.pair().second().equals(pos)) return snapshot;
+                if (snapshot.zone().firstEndpoint().equals(pos) || snapshot.zone().secondEndpoint().equals(pos)) return snapshot;
             }
             return null;
+        }
+
+        private static void renderZone(PoseStack poseStack, VertexConsumer lines, RoutingZone zone,
+            float red, float green, float blue)
+        {
+            double minX = zone.minX(), minZ = zone.minZ();
+            double maxX = zone.maxX() + 1.0, maxZ = zone.maxZ() + 1.0;
+            double bottom = zone.minY();
+            double top = zone.maxY() + 1.0;
+            LevelRenderer.renderLineBox(poseStack, lines, minX, bottom, minZ, maxX, top, maxZ,
+                red, green, blue, 0.55F);
         }
 
         private static Component healthLine(String labelKey, WaypointPairDirectionHealth health, long gameTime)

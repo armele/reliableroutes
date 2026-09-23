@@ -52,9 +52,9 @@ public class RoutingBlock extends AbstractBlock<RoutingBlock> implements IMateri
     @SuppressWarnings("null")
     private static final @Nonnull List<IMateriallyTexturedBlockComponent> COMPONENTS =
         ImmutableList.of(new SimpleRetexturableComponent(MATERIAL_TEXTURE, MATERIALS, Blocks.STONE_BRICKS));
+        
     private final List<ItemStack> itemGroupCache = new ArrayList<>();
-
-    @SuppressWarnings("null")
+    
     public RoutingBlock()
     {
         super(BlockBehaviour.Properties.of().mapColor(MapColor.STONE).strength(1.5F, 6.0F));

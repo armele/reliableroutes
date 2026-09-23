@@ -10,7 +10,7 @@ public final class ReliableRoutesNetwork
 
     public static void register(RegisterPayloadHandlersEvent event)
     {
-        PayloadRegistrar registrar = event.registrar("2");
+        PayloadRegistrar registrar = event.registrar("3");
         registrar.playToServer(RequestWaypointPairsPayload.TYPE, RequestWaypointPairsPayload.STREAM_CODEC,
             RequestWaypointPairsPayload::handle);
         registrar.playToClient(ClientboundWaypointPairsPayload.TYPE, ClientboundWaypointPairsPayload.STREAM_CODEC,

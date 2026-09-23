@@ -1,91 +1,66 @@
 package com.deathfrog.reliableroutes.network;
 
 import com.deathfrog.reliableroutes.Constants;
-import com.deathfrog.reliableroutes.navigation.WaypointPair;
-import com.deathfrog.reliableroutes.navigation.WaypointPairDirectionHealth;
-import com.deathfrog.reliableroutes.navigation.WaypointPairDirectionStatus;
-import com.deathfrog.reliableroutes.navigation.WaypointPairFailureReason;
-import com.deathfrog.reliableroutes.navigation.WaypointPairSnapshot;
+import com.deathfrog.reliableroutes.navigation.*;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
+import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.List;
-import javax.annotation.Nonnull;
 
-/** Synchronizes the nearby pair snapshot used by the lens overlay. */
-public record ClientboundWaypointPairsPayload(List<WaypointPairSnapshot> pairs) implements CustomPacketPayload
+/** Synchronizes nearby routing zones for the lens overlay. */
+public record ClientboundWaypointPairsPayload(List<RoutingZoneSnapshot> zones) implements CustomPacketPayload
 {
-    private static final int MAX_PAIRS = 512;
-    public static final Type<ClientboundWaypointPairsPayload> TYPE = new Type<>(
-        ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "waypoint_pairs"));
+    private static final int MAX_ZONES = 512;
+    public static final Type<ClientboundWaypointPairsPayload> TYPE = new Type<>(ResourceLocation.fromNamespaceAndPath(Constants.MOD_ID, "routing_zones"));
     public static final StreamCodec<RegistryFriendlyByteBuf, ClientboundWaypointPairsPayload> STREAM_CODEC = new StreamCodec<>()
     {
-        @Override
-        public ClientboundWaypointPairsPayload decode(@Nonnull RegistryFriendlyByteBuf buffer)
+        @Override public ClientboundWaypointPairsPayload decode(@Nonnull RegistryFriendlyByteBuf buffer)
         {
-            int size = Math.min(buffer.readVarInt(), MAX_PAIRS);
-            List<WaypointPairSnapshot> pairs = new ArrayList<>(size);
+            int size = Math.min(buffer.readVarInt(), MAX_ZONES);
+            List<RoutingZoneSnapshot> zones = new ArrayList<>(size);
             for (int index = 0; index < size; index++)
             {
-                WaypointPair pair = new WaypointPair(buffer.readBlockPos(), buffer.readBlockPos());
-                pairs.add(new WaypointPairSnapshot(pair, readHealth(buffer), readHealth(buffer)));
+                RoutingZone zone = new RoutingZone(buffer.readVarInt(), buffer.readVarInt(), buffer.readVarInt(), buffer.readVarInt(),
+                    buffer.readBlockPos(), buffer.readBlockPos());
+                zones.add(new RoutingZoneSnapshot(zone, readHealth(buffer), readHealth(buffer)));
             }
-            return new ClientboundWaypointPairsPayload(List.copyOf(pairs));
+            return new ClientboundWaypointPairsPayload(zones);
         }
-
-        @Override
-        public void encode(@Nonnull RegistryFriendlyByteBuf buffer, @Nonnull ClientboundWaypointPairsPayload payload)
+        @Override public void encode(@Nonnull RegistryFriendlyByteBuf buffer, @Nonnull ClientboundWaypointPairsPayload payload)
         {
-            int size = Math.min(payload.pairs.size(), MAX_PAIRS);
+            int size = Math.min(payload.zones.size(), MAX_ZONES);
             buffer.writeVarInt(size);
             for (int index = 0; index < size; index++)
             {
-                WaypointPairSnapshot snapshot = payload.pairs.get(index);
-                WaypointPair pair = snapshot.pair();
-                buffer.writeBlockPos(pair.first());
-                buffer.writeBlockPos(pair.second());
-                writeHealth(buffer, snapshot.firstToSecond());
-                writeHealth(buffer, snapshot.secondToFirst());
+                RoutingZoneSnapshot snapshot = payload.zones.get(index);
+                RoutingZone zone = snapshot.zone();
+                buffer.writeVarInt(zone.minX()); buffer.writeVarInt(zone.minZ());
+                buffer.writeVarInt(zone.maxX()); buffer.writeVarInt(zone.maxZ());
+                buffer.writeBlockPos(zone.firstEndpoint()); buffer.writeBlockPos(zone.secondEndpoint());
+                writeHealth(buffer, snapshot.firstToSecond()); writeHealth(buffer, snapshot.secondToFirst());
             }
         }
-
         private WaypointPairDirectionHealth readHealth(RegistryFriendlyByteBuf buffer)
         {
-            WaypointPairDirectionStatus status = readEnum(buffer, WaypointPairDirectionStatus.values(), WaypointPairDirectionStatus.UNKNOWN);
-            WaypointPairFailureReason reason = readEnum(buffer, WaypointPairFailureReason.values(), WaypointPairFailureReason.NONE);
-            return new WaypointPairDirectionHealth(status, reason, buffer.readVarLong());
+            WaypointPairDirectionStatus[] statuses = WaypointPairDirectionStatus.values();
+            WaypointPairFailureReason[] reasons = WaypointPairFailureReason.values();
+            int status = buffer.readVarInt(), reason = buffer.readVarInt();
+            return new WaypointPairDirectionHealth(status < statuses.length ? statuses[status] : WaypointPairDirectionStatus.UNKNOWN,
+                reason < reasons.length ? reasons[reason] : WaypointPairFailureReason.NONE, buffer.readVarLong());
         }
-
-        private void writeHealth(RegistryFriendlyByteBuf buffer, WaypointPairDirectionHealth health)
+        private void writeHealth(RegistryFriendlyByteBuf buffer, WaypointPairDirectionHealth value)
         {
-            buffer.writeVarInt(health.status().ordinal());
-            buffer.writeVarInt(health.reason().ordinal());
-            buffer.writeVarLong(health.validatedAt());
-        }
-
-        private <T> T readEnum(RegistryFriendlyByteBuf buffer, T[] values, T fallback)
-        {
-            int ordinal = buffer.readVarInt();
-            return ordinal >= 0 && ordinal < values.length ? values[ordinal] : fallback;
+            buffer.writeVarInt(value.status().ordinal()); buffer.writeVarInt(value.reason().ordinal()); buffer.writeVarLong(value.validatedAt());
         }
     };
-
-    public ClientboundWaypointPairsPayload
-    {
-        pairs = List.copyOf(pairs);
-    }
-
-    @Override
-    public Type<? extends CustomPacketPayload> type()
-    {
-        return TYPE;
-    }
-
+    public ClientboundWaypointPairsPayload { zones = List.copyOf(zones); }
+    @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
     public static void handle(ClientboundWaypointPairsPayload payload, IPayloadContext context)
     {
-        context.enqueueWork(() -> ClientWaypointPairCache.update(payload.pairs));
+        context.enqueueWork(() -> ClientWaypointPairCache.update(payload.zones));
     }
 }

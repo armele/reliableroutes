@@ -4,8 +4,6 @@ import com.deathfrog.reliableroutes.block.RoutingBlock;
 import com.deathfrog.reliableroutes.block.PathPairBlock;
 import com.deathfrog.reliableroutes.item.PathfinderLensItem;
 import com.deathfrog.reliableroutes.item.RoutingBlockItem;
-import com.deathfrog.reliableroutes.navigation.SavedWaypointPairProvider;
-import com.deathfrog.reliableroutes.navigation.WaypointPairProviders;
 import com.deathfrog.reliableroutes.navigation.ReliableRoutesPathNavigate;
 import com.minecolonies.api.entity.citizen.AbstractEntityCitizen;
 import com.minecolonies.api.entity.pathfinding.registry.IPathNavigateRegistry;
@@ -90,7 +88,6 @@ public class ReliableRoutes
             IPathNavigateRegistry.getInstance().registerNewPathNavigate(
                 mob -> ReliableRoutesConfig.isCustomPathfindingEnabled() && mob instanceof AbstractEntityCitizen,
                 mob -> new ReliableRoutesPathNavigate(mob, mob.level()));
-            WaypointPairProviders.install(new SavedWaypointPairProvider());
             LOGGER.info("Registered config-controlled Reliable Routes navigator for MineColonies citizens");
         });
     }

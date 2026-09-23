@@ -75,7 +75,7 @@ public class PathPairBlock extends RoutingBlock
     {
         if (!state.is(newState.getBlock()) && level instanceof ServerLevel serverLevel)
         {
-            WaypointPairSavedData.get(serverLevel).unpair(pos);
+            WaypointPairSavedData.get(serverLevel).removeZoneAt(pos);
         }
         super.onRemove(state, level, pos, newState, movedByPiston);
     }

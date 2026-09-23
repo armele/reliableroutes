@@ -2,29 +2,26 @@ package com.deathfrog.reliableroutes.navigation;
 
 import com.deathfrog.reliableroutes.ReliableRoutes;
 import com.deathfrog.reliableroutes.ReliableRoutesConfig;
-import com.minecolonies.core.entity.pathfinding.navigation.MinecoloniesAdvancedPathNavigate;
+import com.minecolonies.core.entity.pathfinding.PathFindingStatus;
 import com.minecolonies.core.entity.pathfinding.PathfindingUtils;
+import com.minecolonies.core.entity.pathfinding.navigation.MinecoloniesAdvancedPathNavigate;
+import com.minecolonies.core.entity.pathfinding.pathjobs.PathJobMoveCloseToXNearY;
 import com.minecolonies.core.entity.pathfinding.pathjobs.PathJobMoveToLocation;
 import com.minecolonies.core.entity.pathfinding.pathresults.PathResult;
-import com.minecolonies.core.entity.pathfinding.PathFindingStatus;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.level.Level;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Optional;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import java.util.Collection;
 
-/** MineColonies navigator extension that delegates ordinary trips unchanged. */
+/**
+ * MineColonies navigator that routes qualifying trips through protected-zone crossings.
+ */
 public class ReliableRoutesPathNavigate extends MinecoloniesAdvancedPathNavigate
 {
-    private static final double MAXIMUM_PAIR_DETOUR_FACTOR = 1.5;
-    private static final double MAXIMUM_PAIR_ADDITIONAL_DISTANCE = 8;
-    private static final long BROKEN_PAIR_RETRY_TICKS = 20L * 60L * 5L;
-
     private ActiveRoute activeRoute;
     private PathResult<PathJobMoveToLocation> activeStageResult;
 
@@ -35,54 +32,76 @@ public class ReliableRoutesPathNavigate extends MinecoloniesAdvancedPathNavigate
 
     @Override
     @Nullable
-    protected PathResult<PathJobMoveToLocation> walkTo(
-        BlockPos desiredPos,
-        double speedFactor,
-        boolean safeDestination)
+    protected PathResult<PathJobMoveToLocation> walkTo(BlockPos desiredPos, double speedFactor, boolean safeDestination)
     {
         if (activeRoute != null)
         {
             if (activeRoute.plan().destination().equals(desiredPos)) return activeStageResult;
             clearActiveRoute();
         }
-
-        if (!ReliableRoutesConfig.isCustomPathfindingEnabled())
+        if (!ReliableRoutesConfig.isCustomPathfindingEnabled() || !(level instanceof ServerLevel serverLevel))
         {
             return super.walkTo(desiredPos, speedFactor, safeDestination);
         }
-
         BlockPos start = PathfindingUtils.prepareStart(ourEntity);
-        WaypointRouteSelector routeSelector = new WaypointRouteSelector(
-            ReliableRoutesConfig.waypointInfluenceRadius(),
-            ReliableRoutesConfig.maximumWaypointDetourFactor(),
-            ReliableRoutesConfig.maximumWaypointAdditionalDistance());
-        WaypointPairProvider provider = WaypointPairProviders.get();
-        var pairs = provider.findRelevantPairs(level, start, desiredPos, routeSelector.searchRadius());
-        var routePlan = selectUsableRoute(routeSelector, start, desiredPos, pairs);
-
-        if (routePlan.isEmpty())
-        {
-            return super.walkTo(desiredPos, speedFactor, safeDestination);
-        }
-
-        return walkUsingWaypointRoute(routePlan.get(), speedFactor, safeDestination);
+        var selected = WaypointPairSavedData.get(serverLevel).selectRoute(start, desiredPos);
+        if (selected.isEmpty()) return super.walkTo(desiredPos, speedFactor, safeDestination);
+        return startRoute(selected.get(),
+            speedFactor,
+            safeDestination,
+            () -> ReliableRoutesPathNavigate.super.walkTo(desiredPos, speedFactor, safeDestination));
     }
 
-    /** Starts a physical three-leg route through the selected waypoint pair. */
-    private PathResult<PathJobMoveToLocation> walkUsingWaypointRoute(
-        WaypointRoutePlan routePlan,
+    @Override
+    @Nullable
+    protected PathResult<PathJobMoveCloseToXNearY> walkCloseToXNearY(BlockPos desiredPosition,
+        BlockPos nearbyPosition,
+        int distToDesired,
         double speedFactor,
         boolean safeDestination)
     {
-        if (!endpointsStillExist(routePlan))
+        if (activeRoute != null)
         {
-            recordPairHealth(routePlan, WaypointPairDirectionStatus.BROKEN, WaypointPairFailureReason.MISSING_ENDPOINT);
-            return super.walkTo(routePlan.destination(), speedFactor, safeDestination);
+            if (activeRoute.plan().destination().equals(desiredPosition)) return castStageResult();
+            clearActiveRoute();
         }
-        if (safeDestination) setSafeDestinationPos(routePlan.destination());
-        activeRoute = new ActiveRoute(routePlan, speedFactor, safeDestination, RouteStage.TO_ENTRANCE);
-        activeStageResult = submitDirectStage(routePlan.entrance(), speedFactor, false);
-        if (activeStageResult == null) clearActiveRoute();
+        if (!ReliableRoutesConfig.isCustomPathfindingEnabled() || !(level instanceof ServerLevel serverLevel))
+        {
+            return super.walkCloseToXNearY(desiredPosition, nearbyPosition, distToDesired, speedFactor, safeDestination);
+        }
+        BlockPos start = PathfindingUtils.prepareStart(ourEntity);
+        var selected = WaypointPairSavedData.get(serverLevel).selectRoute(start, desiredPosition);
+        if (selected.isEmpty())
+        {
+            return super.walkCloseToXNearY(desiredPosition, nearbyPosition, distToDesired, speedFactor, safeDestination);
+        }
+        startRoute(selected.get(),
+            speedFactor,
+            safeDestination,
+            () -> ReliableRoutesPathNavigate.super.walkCloseToXNearY(desiredPosition,
+                nearbyPosition,
+                distToDesired,
+                speedFactor,
+                safeDestination));
+        return castStageResult();
+    }
+
+    private PathResult<PathJobMoveToLocation> startRoute(WaypointRoutePlan plan,
+        double speedFactor,
+        boolean safeDestination,
+        RouteContinuation continuation)
+    {
+        if (!endpointsStillExist(plan))
+        {
+            if (!plan.escapingZone())
+                recordHealth(plan, WaypointPairDirectionStatus.BROKEN, WaypointPairFailureReason.MISSING_ENDPOINT);
+            continuation.resume();
+            return null;
+        }
+        if (safeDestination) setSafeDestinationPos(plan.destination());
+        activeRoute = new ActiveRoute(plan, speedFactor, safeDestination, RouteStage.TO_ENTRANCE, continuation);
+        activeStageResult = submitStage(plan.entrance(), speedFactor, plan.escapingZone() ? plan.entrance() : null);
+        if (activeStageResult == null) fallBackToDestination();
         return activeStageResult;
     }
 
@@ -94,47 +113,32 @@ public class ReliableRoutesPathNavigate extends MinecoloniesAdvancedPathNavigate
             fallBackToDestination();
             return;
         }
-
-        if (activeRoute != null && activeStageResult != null && activeStageResult.isDone()
-            && activeStageResult.getStatus() == PathFindingStatus.CALCULATION_COMPLETE)
+        if (activeRoute != null && activeStageResult != null &&
+            activeStageResult.isDone() &&
+            activeStageResult.getStatus() == PathFindingStatus.CALCULATION_COMPLETE &&
+            !activeStageResult.isPathReachingDestination())
         {
-            if (!activeStageResult.isPathReachingDestination())
-            {
-                if (activeRoute.stage() == RouteStage.TO_EXIT)
-                {
-                    recordPairHealth(WaypointPairDirectionStatus.BROKEN, WaypointPairFailureReason.NO_PATH);
-                }
-                fallBackToDestination();
-                return;
-            }
-
-            if (activeRoute.stage() == RouteStage.TO_EXIT && !pairPathIsReasonablyDirect(activeStageResult))
-            {
-                recordPairHealth(WaypointPairDirectionStatus.BROKEN, WaypointPairFailureReason.EXCESSIVE_DETOUR);
-                fallBackToDestination();
-                return;
-            }
-
-            if (activeRoute.stage() == RouteStage.TO_EXIT)
-            {
-                recordPairHealth(WaypointPairDirectionStatus.VALID, WaypointPairFailureReason.NONE);
-            }
+            if (!activeRoute.plan().escapingZone())
+                recordHealth(activeRoute.plan(), WaypointPairDirectionStatus.BROKEN, WaypointPairFailureReason.NO_PATH);
+            fallBackToDestination();
+            return;
         }
-
         super.tick();
-
-        if (activeRoute != null && activeStageResult != null
-            && activeStageResult.getStatus() == PathFindingStatus.CANCELLED)
+        if (activeRoute == null || activeStageResult == null) return;
+        if (activeRoute.stage() == RouteStage.LEAVING_ZONE && hasLeftActiveZone())
+        {
+            ActiveRoute route = activeRoute;
+            clearActiveRoute();
+            super.stop();
+            continueRouteOrResume(route);
+            return;
+        }
+        if (activeStageResult.getStatus() == PathFindingStatus.CANCELLED)
         {
             fallBackToDestination();
             return;
         }
-
-        if (activeRoute != null && activeStageResult != null
-            && activeStageResult.getStatus() == PathFindingStatus.COMPLETE)
-        {
-            advanceRoute();
-        }
+        if (activeStageResult.getStatus() == PathFindingStatus.COMPLETE) advanceRoute();
     }
 
     @Override
@@ -147,104 +151,96 @@ public class ReliableRoutesPathNavigate extends MinecoloniesAdvancedPathNavigate
     private void advanceRoute()
     {
         ActiveRoute route = activeRoute;
-        if (route.stage() != RouteStage.TO_DESTINATION && !endpointsStillExist(route.plan()))
+        if (route.stage() == RouteStage.TO_ENTRANCE && !route.plan().escapingZone())
         {
-            recordPairHealth(route.plan(), WaypointPairDirectionStatus.BROKEN, WaypointPairFailureReason.MISSING_ENDPOINT);
-            fallBackToDestination();
+            if (!endpointsStillExist(route.plan()))
+            {
+                recordHealth(route.plan(), WaypointPairDirectionStatus.BROKEN, WaypointPairFailureReason.MISSING_ENDPOINT);
+                fallBackToDestination();
+                return;
+            }
+            activeRoute = route.withStage(RouteStage.TO_EXIT);
+            activeStageResult = submitStage(route.plan().exit(), route.speedFactor(), null);
+            if (activeStageResult == null) fallBackToDestination();
             return;
         }
-        switch (route.stage())
-        {
-            case TO_ENTRANCE -> startStage(route.withStage(RouteStage.TO_EXIT), route.plan().exit(), false);
-            case TO_EXIT -> startStage(route.withStage(RouteStage.TO_DESTINATION), route.plan().destination(), route.safeDestination());
-            case TO_DESTINATION -> clearActiveRoute();
-        }
-    }
-
-    private void startStage(ActiveRoute route, BlockPos destination, boolean safeDestination)
-    {
-        activeRoute = route;
-        activeStageResult = submitDirectStage(destination, route.speedFactor(), safeDestination);
+        if (!route.plan().escapingZone())
+            recordHealth(route.plan(), WaypointPairDirectionStatus.VALID, WaypointPairFailureReason.NONE);
+        activeRoute = route.withStage(RouteStage.LEAVING_ZONE);
+        activeStageResult =
+            submitStage(route.plan().destination(), route.speedFactor(), route.plan().escapingZone() ? route.plan().entrance() : null);
         if (activeStageResult == null) fallBackToDestination();
     }
 
-    private PathResult<PathJobMoveToLocation> submitDirectStage(BlockPos destination, double speedFactor, boolean safeDestination)
+    private PathResult<PathJobMoveToLocation> submitStage(BlockPos destination, double speedFactor, BlockPos escapeTarget)
     {
         BlockPos start = PathfindingUtils.prepareStart(ourEntity);
-        return setPathJob(new PathJobMoveToLocation(
-            ourEntity.level(),
+        int range = (int) ourEntity.getAttribute(Attributes.FOLLOW_RANGE).getValue();
+
+        Collection<RoutingZone> zones =
+            level instanceof ServerLevel serverLevel
+                ? WaypointPairSavedData.get(serverLevel).findZonesForPath(start, destination, range)
+                : java.util.List.of();
+                
+        return setPathJob(new PathJobMoveToLocationInZones(ourEntity.level(),
             start,
             destination,
-            (int) ourEntity.getAttribute(Attributes.FOLLOW_RANGE).getValue(),
-            ourEntity), destination, speedFactor, safeDestination);
-    }
-
-    private boolean pairPathIsReasonablyDirect(PathResult<PathJobMoveToLocation> result)
-    {
-        double directDistance = horizontalDistance(activeRoute.plan().entrance(), activeRoute.plan().exit());
-        return result.getPathLength() <= directDistance * MAXIMUM_PAIR_DETOUR_FACTOR + MAXIMUM_PAIR_ADDITIONAL_DISTANCE;
-    }
-
-    private Optional<WaypointRoutePlan> selectUsableRoute(
-        WaypointRouteSelector routeSelector,
-        BlockPos start,
-        BlockPos destination,
-        Collection<WaypointPair> candidates)
-    {
-        Collection<WaypointPair> remaining = new ArrayList<>(candidates);
-        while (!remaining.isEmpty())
-        {
-            var selected = routeSelector.select(start, destination, remaining);
-            if (selected.isEmpty()) return selected;
-            WaypointRoutePlan plan = selected.get();
-            if (!directionIsInRetryCooldown(plan)) return selected;
-            remaining.removeIf(pair -> pairContainsDirection(pair, plan.entrance(), plan.exit()));
-        }
-        return Optional.empty();
-    }
-
-    private boolean directionIsInRetryCooldown(WaypointRoutePlan plan)
-    {
-        if (!(level instanceof ServerLevel serverLevel)) return false;
-        WaypointPairDirectionHealth value = WaypointPairSavedData.get(serverLevel).health(plan.entrance(), plan.exit());
-        return value.status() == WaypointPairDirectionStatus.BROKEN
-            && level.getGameTime() - value.validatedAt() < BROKEN_PAIR_RETRY_TICKS;
-    }
-
-    private static boolean pairContainsDirection(WaypointPair pair, BlockPos entrance, BlockPos exit)
-    {
-        return pair.first().equals(entrance) && pair.second().equals(exit)
-            || pair.second().equals(entrance) && pair.first().equals(exit);
-    }
-
-    private void recordPairHealth(WaypointPairDirectionStatus status, WaypointPairFailureReason reason)
-    {
-        recordPairHealth(activeRoute.plan(), status, reason);
-    }
-
-    private void recordPairHealth(
-        WaypointRoutePlan plan,
-        WaypointPairDirectionStatus status,
-        WaypointPairFailureReason reason)
-    {
-        if (level instanceof ServerLevel serverLevel)
-        {
-            WaypointPairSavedData.get(serverLevel).recordValidation(
-                plan.entrance(), plan.exit(), status, reason, level.getGameTime());
-        }
+            range,
+            ourEntity,
+            zones,
+            escapeTarget), destination, speedFactor, false);
     }
 
     private boolean endpointsStillExist(WaypointRoutePlan plan)
     {
-        return level.getBlockState(plan.entrance()).is(ReliableRoutes.PATH_PAIR.get())
-            && level.getBlockState(plan.exit()).is(ReliableRoutes.PATH_PAIR.get());
+        return level.getBlockState(plan.entrance()).is(ReliableRoutes.PATH_PAIR.get()) &&
+            level.getBlockState(plan.exit()).is(ReliableRoutes.PATH_PAIR.get());
+    }
+
+    private boolean hasLeftActiveZone()
+    {
+        if (!(level instanceof ServerLevel serverLevel)) return true;
+        return WaypointPairSavedData.get(serverLevel)
+            .zoneAtEndpoint(activeRoute.plan().entrance())
+            .map(zone -> !zone.contains(ourEntity.blockPosition()))
+            .orElse(true);
+    }
+
+    private void recordHealth(WaypointRoutePlan plan, WaypointPairDirectionStatus status, WaypointPairFailureReason reason)
+    {
+        if (level instanceof ServerLevel serverLevel)
+            WaypointPairSavedData.get(serverLevel).recordValidation(plan.entrance(), plan.exit(), status, reason, level.getGameTime());
     }
 
     private void fallBackToDestination()
     {
+        if (activeRoute == null) return;
         ActiveRoute route = activeRoute;
         clearActiveRoute();
-        super.walkTo(route.plan().destination(), route.speedFactor(), route.safeDestination());
+        route.continuation().resume();
+    }
+
+    private void continueRouteOrResume(ActiveRoute route)
+    {
+        if (level instanceof ServerLevel serverLevel)
+        {
+            BlockPos start = PathfindingUtils.prepareStart(ourEntity);
+            var selected = WaypointPairSavedData.get(serverLevel).selectRoute(start, route.plan().destination());
+            if (selected.isPresent())
+            {
+                startRoute(selected.get(), route.speedFactor(), route.safeDestination(), route.continuation());
+                return;
+            }
+        }
+        route.continuation().resume();
+    }
+
+    @SuppressWarnings("unchecked")
+    private PathResult<PathJobMoveCloseToXNearY> castStageResult()
+    {
+        // The generic type describes the job that originally initiated navigation. While a routing
+        // zone is active, the navigator intentionally returns its temporary move-to stage instead.
+        return (PathResult<PathJobMoveCloseToXNearY>) (PathResult<?>) activeStageResult;
     }
 
     private void clearActiveRoute()
@@ -253,23 +249,26 @@ public class ReliableRoutesPathNavigate extends MinecoloniesAdvancedPathNavigate
         activeStageResult = null;
     }
 
-    private static double horizontalDistance(BlockPos first, BlockPos second)
-    {
-        return Math.hypot(first.getX() - second.getX(), first.getZ() - second.getZ());
-    }
-
     private enum RouteStage
     {
-        TO_ENTRANCE,
-        TO_EXIT,
-        TO_DESTINATION
+        TO_ENTRANCE, TO_EXIT, LEAVING_ZONE
     }
 
-    private record ActiveRoute(WaypointRoutePlan plan, double speedFactor, boolean safeDestination, RouteStage stage)
+    @FunctionalInterface
+    private interface RouteContinuation
     {
-        private ActiveRoute withStage(RouteStage newStage)
+        void resume();
+    }
+
+    private record ActiveRoute(WaypointRoutePlan plan,
+        double speedFactor,
+        boolean safeDestination,
+        RouteStage stage,
+        RouteContinuation continuation)
+    {
+        ActiveRoute withStage(RouteStage value)
         {
-            return new ActiveRoute(plan, speedFactor, safeDestination, newStage);
+            return new ActiveRoute(plan, speedFactor, safeDestination, value, continuation);
         }
     }
 }

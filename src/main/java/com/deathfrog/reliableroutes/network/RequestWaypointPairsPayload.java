@@ -13,7 +13,7 @@ import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 import javax.annotation.Nonnull;
 
-/** Requests the waypoint pairs near a lens user's current position. */
+/** Requests routing zones near a lens user's current position. */
 public record RequestWaypointPairsPayload(BlockPos center, int radius) implements CustomPacketPayload
 {
     public static final Type<RequestWaypointPairsPayload> TYPE = new Type<>(
@@ -47,7 +47,7 @@ public record RequestWaypointPairsPayload(BlockPos center, int radius) implement
             if (!player.getMainHandItem().is(ReliableRoutes.PATHFINDER_LENS.get())) return;
             if (player.blockPosition().distSqr(payload.center) > 64) return;
             int radius = Math.clamp(payload.radius, 8, 96);
-            var pairs = WaypointPairSavedData.get(player.serverLevel()).findPairsNear(payload.center, radius);
+            var pairs = WaypointPairSavedData.get(player.serverLevel()).findZonesNear(payload.center, radius);
             WaypointPairSavedData data = WaypointPairSavedData.get(player.serverLevel());
             PacketDistributor.sendToPlayer(player, new ClientboundWaypointPairsPayload(pairs.stream().map(data::snapshot).toList()));
         });

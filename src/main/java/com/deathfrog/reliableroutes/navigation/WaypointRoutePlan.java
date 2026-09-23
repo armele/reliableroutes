@@ -8,6 +8,7 @@ public record WaypointRoutePlan(
     @Nonnull BlockPos entrance,
     @Nonnull BlockPos exit,
     @Nonnull BlockPos destination,
-    double estimatedDistance)
+    double estimatedDistance,
+    boolean escapingZone)
 {
 }

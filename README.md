@@ -1,25 +1,24 @@
+# Reliable Routes
 
-Installation information
-=======
+Reliable Routes gives you more control over how MineColonies citizens travel through your colony.
 
-This template repository can be directly cloned to get you started with a new
-mod. Simply create a new repository cloned from this one, by following the
-instructions provided by [GitHub](https://docs.github.com/en/repositories/creating-and-managing-repositories/creating-a-repository-from-a-template).
+## Features
 
-Once you have your clone, simply open the repository in the IDE of your choice. The usual recommendation for an IDE is either IntelliJ IDEA or Eclipse.
+- **MineColonies Roads** encourage citizens to follow the routes you build.
+- **Forbidden Ground** marks places citizens should avoid.
+- **Path Pairs** create reliable entrances and exits through difficult areas such as bridges, gates, and tunnels.
+- **Routing Zones** keep citizens inside a chosen crossing instead of letting them wander, swim, or search for a risky shortcut.
+- **Pathfinder Lens** highlights roads, hazards, waypoints, routing zones, and the current health of each route.
+- **Custom appearances** let routing blocks blend into your builds using Domum Ornamentum materials.
 
-If at any point you are missing libraries in your IDE, or you've run into problems you can
-run `gradlew --refresh-dependencies` to refresh the local cache. `gradlew clean` to reset everything 
-{this does not affect your code} and then start the process again.
+## Creating a Routing Zone
 
-Mapping Names:
-============
-By default, the MDK is configured to use the official mapping names from Mojang for methods and fields 
-in the Minecraft codebase. These names are covered by a specific license. All modders should be aware of this
-license. For the latest license text, refer to the mapping file itself, or the reference copy here:
-https://github.com/NeoForged/NeoForm/blob/main/Mojang.md
+1. Place a Path Pair block at each end of the crossing.
+2. Use the Pathfinder Lens on both Path Pair blocks.
+3. Use the lens on two opposite corners to mark the routing zone.
 
-Additional Resources: 
-==========
-Community Documentation: https://docs.neoforged.net/  
-NeoForged Discord: https://discord.neoforged.net/
+Both endpoints must be in the same colony. Hold the lens to inspect the zone and see whether travel works in each direction. Crouch-use a paired endpoint to remove its zone, or crouch-use the lens in the air to clear your current selection.
+
+## Requirements
+
+Reliable Routes is made for Minecraft 1.21.1 with NeoForge and requires MineColonies and Domum Ornamentum.
