@@ -1,0 +1,7 @@
+{
+  "type":"minecraft:crafting_shaped",
+  "category":"equipment",
+  "pattern":["GGG","GBG","GGG"],
+  "key":{"G":{"item":"minecraft:glass_pane"},"B":{"item":"minecolonies:build_goggles"}},
+  "result":{"id":"reliableroutes:pathfinder_lens","count":1}
+}
