@@ -13,6 +13,7 @@ public record RoutingZone(
 {
     public static final int VERTICAL_PADDING = 5;
 
+    @SuppressWarnings("null")
     public RoutingZone
     {
         int normalizedMinX = Math.min(minX, maxX);

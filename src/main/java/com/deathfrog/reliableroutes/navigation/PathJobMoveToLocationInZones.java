@@ -6,6 +6,7 @@ import com.minecolonies.core.entity.pathfinding.pathjobs.PathJobMoveToLocation;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.state.BlockState;
 
 import java.util.Collection;
 import java.util.List;
@@ -30,7 +31,7 @@ final class PathJobMoveToLocationInZones extends PathJobMoveToLocation
         int height = super.getGroundHeight(parent, x, y, z);
         if (height == Integer.MIN_VALUE || !isInsideZone(x, height, z)) return height;
 
-        var below = cachedBlockLookup.getBlockState(x, height - 1, z);
+        BlockState below = cachedBlockLookup.getBlockState(x, height - 1, z);
         boolean water = PathfindingUtils.isWater(cachedBlockLookup, null, below, null)
             || PathfindingUtils.isWater(cachedBlockLookup, null, cachedBlockLookup.getBlockState(x, height, z), null)
             || PathfindingUtils.isWater(cachedBlockLookup, null, cachedBlockLookup.getBlockState(x, height + 1, z), null);

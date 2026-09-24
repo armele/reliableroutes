@@ -55,6 +55,7 @@ public class RoutingBlock extends AbstractBlock<RoutingBlock> implements IMateri
         
     private final List<ItemStack> itemGroupCache = new ArrayList<>();
     
+    @SuppressWarnings("null")
     public RoutingBlock()
     {
         super(BlockBehaviour.Properties.of().mapColor(MapColor.STONE).strength(1.5F, 6.0F));

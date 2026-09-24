@@ -16,6 +16,7 @@ import net.minecraft.world.level.Level;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import java.util.Collection;
+import java.util.Optional;
 
 /**
  * MineColonies navigator that routes qualifying trips through protected-zone crossings.
@@ -44,8 +45,12 @@ public class ReliableRoutesPathNavigate extends MinecoloniesAdvancedPathNavigate
             return super.walkTo(desiredPos, speedFactor, safeDestination);
         }
         BlockPos start = PathfindingUtils.prepareStart(ourEntity);
-        var selected = WaypointPairSavedData.get(serverLevel).selectRoute(start, desiredPos);
+
+        @SuppressWarnings("null")
+
+        Optional<WaypointRoutePlan> selected = WaypointPairSavedData.get(serverLevel).selectRoute(start, desiredPos);
         if (selected.isEmpty()) return super.walkTo(desiredPos, speedFactor, safeDestination);
+
         return startRoute(selected.get(),
             speedFactor,
             safeDestination,
@@ -69,8 +74,12 @@ public class ReliableRoutesPathNavigate extends MinecoloniesAdvancedPathNavigate
         {
             return super.walkCloseToXNearY(desiredPosition, nearbyPosition, distToDesired, speedFactor, safeDestination);
         }
+
         BlockPos start = PathfindingUtils.prepareStart(ourEntity);
-        var selected = WaypointPairSavedData.get(serverLevel).selectRoute(start, desiredPosition);
+
+        @SuppressWarnings("null")
+        Optional<WaypointRoutePlan> selected = WaypointPairSavedData.get(serverLevel).selectRoute(start, desiredPosition);
+        
         if (selected.isEmpty())
         {
             return super.walkCloseToXNearY(desiredPosition, nearbyPosition, distToDesired, speedFactor, safeDestination);
@@ -172,9 +181,11 @@ public class ReliableRoutesPathNavigate extends MinecoloniesAdvancedPathNavigate
         if (activeStageResult == null) fallBackToDestination();
     }
 
+    @SuppressWarnings("null")
     private PathResult<PathJobMoveToLocation> submitStage(BlockPos destination, double speedFactor, BlockPos escapeTarget)
     {
         BlockPos start = PathfindingUtils.prepareStart(ourEntity);
+
         int range = (int) ourEntity.getAttribute(Attributes.FOLLOW_RANGE).getValue();
 
         Collection<RoutingZone> zones =
@@ -191,6 +202,7 @@ public class ReliableRoutesPathNavigate extends MinecoloniesAdvancedPathNavigate
             escapeTarget), destination, speedFactor, false);
     }
 
+    @SuppressWarnings("null")
     private boolean endpointsStillExist(WaypointRoutePlan plan)
     {
         return level.getBlockState(plan.entrance()).is(ReliableRoutes.PATH_PAIR.get()) &&
@@ -220,12 +232,14 @@ public class ReliableRoutesPathNavigate extends MinecoloniesAdvancedPathNavigate
         route.continuation().resume();
     }
 
+    @SuppressWarnings("null")
     private void continueRouteOrResume(ActiveRoute route)
     {
         if (level instanceof ServerLevel serverLevel)
         {
             BlockPos start = PathfindingUtils.prepareStart(ourEntity);
-            var selected = WaypointPairSavedData.get(serverLevel).selectRoute(start, route.plan().destination());
+            
+            Optional<WaypointRoutePlan> selected = WaypointPairSavedData.get(serverLevel).selectRoute(start, route.plan().destination());
             if (selected.isPresent())
             {
                 startRoute(selected.get(), route.speedFactor(), route.safeDestination(), route.continuation());

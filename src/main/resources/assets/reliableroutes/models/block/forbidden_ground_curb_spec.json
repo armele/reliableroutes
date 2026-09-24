@@ -1,0 +1,35 @@
+{
+	"format_version": "26.3",
+	"credit": "Made with Blockbench",
+	"parent": "minecraft:block/block",
+	"textures": {
+		"particle": "block/stone_bricks",
+		"material": "block/stone_bricks"
+	},
+	"elements": [
+		{
+			"from": [0, 2, 7],
+			"to": [16, 4, 9],
+			"faces": {
+				"north": {"uv": [0, 0, 16, 2], "texture": "#material"},
+				"east": {"uv": [7, 0, 9, 2], "texture": "#material"},
+				"south": {"uv": [0, 0, 16, 2], "texture": "#material"},
+				"west": {"uv": [7, 0, 9, 2], "texture": "#material"},
+				"up": {"uv": [0, 7, 16, 9], "texture": "#material"},
+				"down": {"uv": [0, 7, 16, 9], "texture": "#material"}
+			}
+		},
+		{
+			"from": [0, 0, 6],
+			"to": [16, 2, 10],
+			"faces": {
+				"north": {"uv": [0, 2, 16, 4], "texture": "#material"},
+				"east": {"uv": [6, 2, 10, 4], "texture": "#material"},
+				"south": {"uv": [0, 2, 16, 4], "texture": "#material"},
+				"west": {"uv": [6, 2, 10, 4], "texture": "#material"},
+				"up": {"uv": [0, 6, 16, 10], "texture": "#material"},
+				"down": {"uv": [0, 6, 16, 10], "texture": "#material"}
+			}
+		}
+	]
+}

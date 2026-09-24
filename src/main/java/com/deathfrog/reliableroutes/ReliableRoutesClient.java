@@ -14,6 +14,7 @@ import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
@@ -159,30 +160,43 @@ public class ReliableRoutesClient
             }
         }
 
-        private static void renderWaypoints(
-            PoseStack poseStack,
-            VertexConsumer lines,
-            Minecraft minecraft,
-            long gameTime)
+        @SuppressWarnings("null")
+        private static void renderWaypoints(PoseStack poseStack, VertexConsumer lines, Minecraft minecraft, long gameTime)
         {
             List<RoutingZoneSnapshot> pairs = ClientWaypointPairCache.get();
             Set<Long> pairedEndpoints = new HashSet<>();
-            ItemStack lens = minecraft.player.getMainHandItem();
+
+            LocalPlayer player = minecraft.player;
+            ClientLevel localLevel = minecraft.level;
+
+            if (player == null || localLevel == null) return;
+
+            ItemStack lens = player.getMainHandItem();
             PathfinderLensItem.PendingWaypoint pending = PathfinderLensItem.getPending(lens);
             PathfinderLensItem.Draft draft = PathfinderLensItem.getDraft(lens);
-            BlockPos pendingPos = pending != null && pending.dimension().equals(minecraft.level.dimension().location()) ? pending.pos() : null;
+
+            BlockPos pendingPos =
+                pending != null && pending.dimension().equals(localLevel.dimension().location()) ? pending.pos() : null;
+
             float pulse = 0.65F + 0.35F * (float) Math.sin(gameTime * 0.2);
-            if (draft != null && draft.dimension().equals(minecraft.level.dimension().location()) && draft.secondEndpoint() != null)
+
+            if (draft != null && draft.dimension().equals(localLevel.dimension().location()) && draft.secondEndpoint() != null)
             {
                 renderWaypoint(poseStack, lines, draft.firstEndpoint(), 0.2F, 0.9F, 1.0F, pulse, true);
                 renderWaypoint(poseStack, lines, draft.secondEndpoint(), 0.2F, 0.9F, 1.0F, pulse, true);
                 renderConnection(poseStack, lines, draft.firstEndpoint(), draft.secondEndpoint(), 0.2F, 0.9F, 1.0F, 0.8F);
                 if (draft.firstCorner() != null && draft.secondCorner() != null)
                 {
-                    renderZone(poseStack, lines, RoutingZone.fromCorners(draft.firstCorner(), draft.secondCorner(),
-                        draft.firstEndpoint(), draft.secondEndpoint()), 0.2F, 0.9F, 1.0F);
+                    renderZone(poseStack,
+                        lines,
+                        RoutingZone
+                            .fromCorners(draft.firstCorner(), draft.secondCorner(), draft.firstEndpoint(), draft.secondEndpoint()),
+                        0.2F,
+                        0.9F,
+                        1.0F);
                 }
             }
+
             for (RoutingZoneSnapshot snapshot : pairs)
             {
                 RoutingZone zone = snapshot.zone();
@@ -195,27 +209,43 @@ public class ReliableRoutesClient
                 float blue = (color & 255) / 255.0F;
                 boolean firstSelected = pair.first().equals(pendingPos);
                 boolean secondSelected = pair.second().equals(pendingPos);
-                renderWaypoint(poseStack, lines, pair.first(),
-                    firstSelected ? 1.0F : red, firstSelected ? 1.0F : green, firstSelected ? 1.0F : blue,
-                    firstSelected ? pulse : 0.9F, true);
-                renderWaypoint(poseStack, lines, pair.second(),
-                    secondSelected ? 1.0F : red, secondSelected ? 1.0F : green, secondSelected ? 1.0F : blue,
-                    secondSelected ? pulse : 0.9F, true);
+                renderWaypoint(poseStack,
+                    lines,
+                    pair.first(),
+                    firstSelected ? 1.0F : red,
+                    firstSelected ? 1.0F : green,
+                    firstSelected ? 1.0F : blue,
+                    firstSelected ? pulse : 0.9F,
+                    true);
+                renderWaypoint(poseStack,
+                    lines,
+                    pair.second(),
+                    secondSelected ? 1.0F : red,
+                    secondSelected ? 1.0F : green,
+                    secondSelected ? 1.0F : blue,
+                    secondSelected ? pulse : 0.9F,
+                    true);
                 // The directional lanes below are the authoritative connection display.
                 // A centered undirected line obscures their status colors and arrows.
                 renderZone(poseStack, lines, zone, 0.15F, 0.8F, 1.0F);
                 Vec3 laneOffset = laneOffset(pair.first(), pair.second());
-                renderDirectionalLane(poseStack, lines, pair.first(), pair.second(), laneOffset,
-                    snapshot.firstToSecond(), gameTime);
-                renderDirectionalLane(poseStack, lines, pair.second(), pair.first(), laneOffset.scale(-1),
-                    snapshot.secondToFirst(), gameTime);
+                renderDirectionalLane(poseStack, lines, pair.first(), pair.second(), laneOffset, snapshot.firstToSecond(), gameTime);
+                renderDirectionalLane(poseStack,
+                    lines,
+                    pair.second(),
+                    pair.first(),
+                    laneOffset.scale(-1),
+                    snapshot.secondToFirst(),
+                    gameTime);
             }
 
             for (BlockPos waypoint : WAYPOINTS)
             {
                 if (pairedEndpoints.contains(waypoint.asLong())) continue;
                 boolean selected = waypoint.equals(pendingPos);
-                renderWaypoint(poseStack, lines, waypoint,
+                renderWaypoint(poseStack,
+                    lines,
+                    waypoint,
                     1.0F,
                     selected ? 1.0F : 0.55F,
                     selected ? 1.0F : 0.05F,
@@ -225,8 +255,7 @@ public class ReliableRoutesClient
         }
 
         @SuppressWarnings("null")
-        private static void renderConnection(
-            PoseStack poseStack,
+        private static void renderConnection(PoseStack poseStack,
             VertexConsumer lines,
             BlockPos first,
             BlockPos second,
@@ -263,12 +292,12 @@ public class ReliableRoutesClient
             return new Vec3(-dz / horizontalLength * LANE_OFFSET, 0, dx / horizontalLength * LANE_OFFSET);
         }
 
-        private static void renderDirectionalLane(
-            PoseStack poseStack,
+        @SuppressWarnings("null")
+        private static void renderDirectionalLane(PoseStack poseStack,
             VertexConsumer lines,
             BlockPos from,
             BlockPos to,
-            Vec3 offset,
+            @Nonnull Vec3 offset,
             WaypointPairDirectionHealth health,
             long gameTime)
         {
@@ -309,12 +338,16 @@ public class ReliableRoutesClient
             {
                 case VALID -> new float[] {0.15F, 1.0F, 0.25F, 0.95F};
                 case UNKNOWN -> new float[] {1.0F, 0.72F, 0.12F, 0.9F};
-                case BROKEN -> new float[] {1.0F, 0.08F, 0.08F,
-                    0.55F + 0.4F * (float) Math.abs(Math.sin(gameTime * 0.18))};
+                case BROKEN -> new float[] {1.0F, 0.08F, 0.08F, 0.55F + 0.4F * (float) Math.abs(Math.sin(gameTime * 0.18))};
             };
         }
 
-        private static void renderDottedLine(PoseStack poseStack, VertexConsumer lines, Vec3 start, Vec3 end, float[] color)
+        @SuppressWarnings("null")
+        private static void renderDottedLine(PoseStack poseStack,
+            VertexConsumer lines,
+            @Nonnull Vec3 start,
+            @Nonnull Vec3 end,
+            float[] color)
         {
             Vec3 delta = end.subtract(start);
             double length = delta.length();
@@ -323,11 +356,18 @@ public class ReliableRoutesClient
             {
                 double from = (double) index / segments;
                 double to = Math.min(1.0, (double) (index + 1) / segments);
-                renderLine(poseStack, lines, start.add(delta.scale(from)), start.add(delta.scale(to)),
-                    color[0], color[1], color[2], color[3]);
+                renderLine(poseStack,
+                    lines,
+                    start.add(delta.scale(from)),
+                    start.add(delta.scale(to)),
+                    color[0],
+                    color[1],
+                    color[2],
+                    color[3]);
             }
         }
 
+        @SuppressWarnings("null")
         private static void renderArrow(PoseStack poseStack, VertexConsumer lines, Vec3 tip, Vec3 unit, Vec3 side, float[] color)
         {
             Vec3 back = tip.subtract(unit.scale(0.42));
@@ -335,19 +375,38 @@ public class ReliableRoutesClient
             renderLine(poseStack, lines, tip, back.subtract(side.scale(0.22)), color[0], color[1], color[2], color[3]);
         }
 
+        @SuppressWarnings("null")
         private static void renderCross(PoseStack poseStack, VertexConsumer lines, Vec3 center, Vec3 unit, Vec3 side, float[] color)
         {
             Vec3 along = unit.scale(0.24);
             Vec3 across = side.scale(0.24);
-            renderLine(poseStack, lines, center.subtract(along).subtract(across), center.add(along).add(across),
-                color[0], color[1], color[2], color[3]);
-            renderLine(poseStack, lines, center.subtract(along).add(across), center.add(along).subtract(across),
-                color[0], color[1], color[2], color[3]);
+            renderLine(poseStack,
+                lines,
+                center.subtract(along).subtract(across),
+                center.add(along).add(across),
+                color[0],
+                color[1],
+                color[2],
+                color[3]);
+            renderLine(poseStack,
+                lines,
+                center.subtract(along).add(across),
+                center.add(along).subtract(across),
+                color[0],
+                color[1],
+                color[2],
+                color[3]);
         }
 
-        private static void renderLine(
-            PoseStack poseStack, VertexConsumer lines, Vec3 start, Vec3 end,
-            float red, float green, float blue, float alpha)
+        @SuppressWarnings("null")
+        private static void renderLine(PoseStack poseStack,
+            VertexConsumer lines,
+            Vec3 start,
+            Vec3 end,
+            float red,
+            float green,
+            float blue,
+            float alpha)
         {
             Vec3 normal = end.subtract(start).normalize();
             lines.addVertex(poseStack.last().pose(), (float) start.x, (float) start.y, (float) start.z)
@@ -358,13 +417,15 @@ public class ReliableRoutesClient
                 .setNormal(poseStack.last(), (float) normal.x, (float) normal.y, (float) normal.z);
         }
 
+        @SuppressWarnings("null")
         @SubscribeEvent
         public static void renderHud(RenderGuiEvent.Post event)
         {
             Minecraft minecraft = Minecraft.getInstance();
-            if (minecraft.player == null || minecraft.level == null || minecraft.options.hideGui
-                || !minecraft.player.getMainHandItem().is(ReliableRoutes.PATHFINDER_LENS.get())
-                || !(minecraft.hitResult instanceof BlockHitResult blockHit)) return;
+            if (minecraft.player == null || minecraft.level == null ||
+                minecraft.options.hideGui ||
+                !minecraft.player.getMainHandItem().is(ReliableRoutes.PATHFINDER_LENS.get()) ||
+                !(minecraft.hitResult instanceof BlockHitResult blockHit)) return;
 
             RoutingZoneSnapshot snapshot = findPair(blockHit.getBlockPos());
             if (snapshot == null) return;
@@ -375,7 +436,8 @@ public class ReliableRoutesClient
             Component title = Component.translatable("gui.reliableroutes.path_pair");
             Component outbound = healthLine("gui.reliableroutes.to_partner", toPartner, minecraft.level.getGameTime());
             Component inbound = healthLine("gui.reliableroutes.from_partner", fromPartner, minecraft.level.getGameTime());
-            int width = Math.max(minecraft.font.width(title), Math.max(minecraft.font.width(outbound), minecraft.font.width(inbound))) + 12;
+            int width =
+                Math.max(minecraft.font.width(title), Math.max(minecraft.font.width(outbound), minecraft.font.width(inbound))) + 12;
             int x = graphics.guiWidth() / 2 + 12;
             int y = graphics.guiHeight() / 2 + 14;
             graphics.fill(x - 5, y - 5, x + width, y + 31, 0xA0000000);
@@ -393,23 +455,28 @@ public class ReliableRoutesClient
             return null;
         }
 
-        private static void renderZone(PoseStack poseStack, VertexConsumer lines, RoutingZone zone,
-            float red, float green, float blue)
+        private static void renderZone(@Nonnull PoseStack poseStack,
+            @Nonnull VertexConsumer lines,
+            RoutingZone zone,
+            float red,
+            float green,
+            float blue)
         {
             double minX = zone.minX(), minZ = zone.minZ();
             double maxX = zone.maxX() + 1.0, maxZ = zone.maxZ() + 1.0;
             double bottom = zone.minY();
             double top = zone.maxY() + 1.0;
-            LevelRenderer.renderLineBox(poseStack, lines, minX, bottom, minZ, maxX, top, maxZ,
-                red, green, blue, 0.55F);
+            LevelRenderer.renderLineBox(poseStack, lines, minX, bottom, minZ, maxX, top, maxZ, red, green, blue, 0.55F);
         }
 
-        private static Component healthLine(String labelKey, WaypointPairDirectionHealth health, long gameTime)
+        private static Component healthLine(@Nonnull String labelKey, WaypointPairDirectionHealth health, long gameTime)
         {
-            Component status = Component.translatable("gui.reliableroutes.status." + health.status().name().toLowerCase(java.util.Locale.ROOT));
+            Component status =
+                Component.translatable("gui.reliableroutes.status." + health.status().name().toLowerCase(java.util.Locale.ROOT));
             if (health.status() == WaypointPairDirectionStatus.BROKEN)
             {
-                Component reason = Component.translatable("gui.reliableroutes.reason." + health.reason().name().toLowerCase(java.util.Locale.ROOT));
+                Component reason =
+                    Component.translatable("gui.reliableroutes.reason." + health.reason().name().toLowerCase(java.util.Locale.ROOT));
                 status = Component.translatable("gui.reliableroutes.broken_detail", status, reason);
             }
             if (health.validatedAt() > 0)
@@ -437,9 +504,8 @@ public class ReliableRoutesClient
             };
         }
 
-        private static void renderWaypoint(
-            PoseStack poseStack,
-            VertexConsumer lines,
+        private static void renderWaypoint(@Nonnull PoseStack poseStack,
+            @Nonnull VertexConsumer lines,
             BlockPos pos,
             float red,
             float green,
@@ -447,16 +513,32 @@ public class ReliableRoutesClient
             float alpha,
             boolean beam)
         {
-            LevelRenderer.renderLineBox(poseStack, lines,
-                pos.getX() + INSET, pos.getY() + INSET, pos.getZ() + INSET,
-                pos.getX() + 1.0F - INSET, pos.getY() + 1.0F - INSET, pos.getZ() + 1.0F - INSET,
-                red, green, blue, alpha);
+            LevelRenderer.renderLineBox(poseStack,
+                lines,
+                pos.getX() + INSET,
+                pos.getY() + INSET,
+                pos.getZ() + INSET,
+                pos.getX() + 1.0F - INSET,
+                pos.getY() + 1.0F - INSET,
+                pos.getZ() + 1.0F - INSET,
+                red,
+                green,
+                blue,
+                alpha);
             if (beam)
             {
-                LevelRenderer.renderLineBox(poseStack, lines,
-                    pos.getX() + 0.46, pos.getY() + 1.0, pos.getZ() + 0.46,
-                    pos.getX() + 0.54, pos.getY() + 1.0 + BEAM_HEIGHT, pos.getZ() + 0.54,
-                    red, green, blue, alpha);
+                LevelRenderer.renderLineBox(poseStack,
+                    lines,
+                    pos.getX() + 0.46,
+                    pos.getY() + 1.0,
+                    pos.getZ() + 0.46,
+                    pos.getX() + 0.54,
+                    pos.getY() + 1.0 + BEAM_HEIGHT,
+                    pos.getZ() + 0.54,
+                    red,
+                    green,
+                    blue,
+                    alpha);
             }
         }
 

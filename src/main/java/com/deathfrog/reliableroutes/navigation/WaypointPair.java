@@ -6,6 +6,7 @@ import javax.annotation.Nonnull;
 /** Two bidirectional endpoints connected by a preferred route. */
 public record WaypointPair(@Nonnull BlockPos first, @Nonnull BlockPos second)
 {
+    @SuppressWarnings("null")
     public WaypointPair
     {
         first = first.immutable();

@@ -1,7 +1,6 @@
 {
     "replace": false,
     "values": [
-        "reliableroutes:minecolonies_road",
-        "reliableroutes:minecolonies_road_uniform"
+        "reliableroutes:reliableroutes_road"
     ]
 }

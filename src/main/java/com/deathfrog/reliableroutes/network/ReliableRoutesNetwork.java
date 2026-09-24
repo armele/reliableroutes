@@ -8,6 +8,7 @@ public final class ReliableRoutesNetwork
 {
     private ReliableRoutesNetwork() {}
 
+    @SuppressWarnings("null")
     public static void register(RegisterPayloadHandlersEvent event)
     {
         PayloadRegistrar registrar = event.registrar("3");

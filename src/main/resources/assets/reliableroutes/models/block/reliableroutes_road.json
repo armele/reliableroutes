@@ -1,0 +1,4 @@
+{
+    "parent": "reliableroutes:block/routing_block_road",
+    "loader": "domum_ornamentum:materially_textured"
+}

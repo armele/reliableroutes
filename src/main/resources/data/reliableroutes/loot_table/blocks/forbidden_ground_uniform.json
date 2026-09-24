@@ -1,1 +1,0 @@
-{"type":"minecraft:block","pools":[{"rolls":1,"entries":[{"type":"minecraft:item","name":"reliableroutes:forbidden_ground_uniform","functions":[{"function":"minecraft:copy_components","source":"block_entity","include":["domum_ornamentum:texture_data"]}]}]}]}

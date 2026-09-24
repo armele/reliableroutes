@@ -1,0 +1,12 @@
+{
+  "variants": {
+    "facing=north,shape=straight": {"model":"reliableroutes:block/forbidden_ground_curb"},
+    "facing=east,shape=straight": {"model":"reliableroutes:block/forbidden_ground_curb","y":90},
+    "facing=south,shape=straight": {"model":"reliableroutes:block/forbidden_ground_curb","y":180},
+    "facing=west,shape=straight": {"model":"reliableroutes:block/forbidden_ground_curb","y":270},
+    "facing=north,shape=corner": {"model":"reliableroutes:block/forbidden_ground_curb_corner"},
+    "facing=east,shape=corner": {"model":"reliableroutes:block/forbidden_ground_curb_corner","y":90},
+    "facing=south,shape=corner": {"model":"reliableroutes:block/forbidden_ground_curb_corner","y":180},
+    "facing=west,shape=corner": {"model":"reliableroutes:block/forbidden_ground_curb_corner","y":270}
+  }
+}

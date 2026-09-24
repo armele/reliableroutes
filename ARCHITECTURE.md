@@ -108,13 +108,7 @@ When changing packet fields, update both codec directions together. Also conside
 
 ## Material Models
 
-Most routing blocks use Domum Ornamentum's normal material model support. The uniform variants use a custom NeoForge geometry loader:
-
-- `UniformMaterialModelLoader` reads the model JSON and registers the loader.
-- `UniformMaterialGeometry` first bakes the normal materially textured model.
-- `UniformMaterialBakedModel` remaps every face to the selected material block's upward-facing texture.
-
-This is client-only rendering behavior. Changes should be checked both as a placed block and as an inventory item because those paths obtain material data differently.
+Routing blocks use Domum Ornamentum's normal materially textured model support. This preserves the selected source block's directional textures, render types, and tinting. Model changes should be checked both as placed blocks and as inventory items because those paths obtain material data differently.
 
 ## Resources and Metadata
 

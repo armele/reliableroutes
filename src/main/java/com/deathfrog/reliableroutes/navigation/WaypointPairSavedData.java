@@ -15,6 +15,18 @@ import java.util.*;
 public final class WaypointPairSavedData extends SavedData
 {
     private static final String NAME = Constants.MOD_ID + "_routing_zones";
+    private static final String TAG_ZONES = "Zones";
+    private static final String TAG_MIN_X = "MinX";
+    private static final String TAG_MIN_Z = "MinZ";
+    private static final String TAG_MAX_X = "MaxX";
+    private static final String TAG_MAX_Z = "MaxZ";
+    private static final String TAG_FIRST = "First";
+    private static final String TAG_SECOND = "Second";
+    private static final String TAG_FIRST_TO_SECOND = "FirstToSecond";
+    private static final String TAG_SECOND_TO_FIRST = "SecondToFirst";
+    private static final String TAG_STATUS = "Status";
+    private static final String TAG_REASON = "Reason";
+    private static final String TAG_VALIDATED_AT = "ValidatedAt";
     private final List<RoutingZone> zones = new ArrayList<>();
     private final Map<DirectionKey, WaypointPairDirectionHealth> health = new HashMap<>();
 
@@ -26,14 +38,18 @@ public final class WaypointPairSavedData extends SavedData
     private static WaypointPairSavedData load(CompoundTag root, HolderLookup.Provider registries)
     {
         WaypointPairSavedData data = new WaypointPairSavedData();
-        for (Tag raw : root.getList("Zones", Tag.TAG_COMPOUND))
+        for (Tag raw : root.getList(TAG_ZONES, Tag.TAG_COMPOUND))
         {
             CompoundTag tag = (CompoundTag) raw;
-            RoutingZone zone = new RoutingZone(tag.getInt("MinX"), tag.getInt("MinZ"), tag.getInt("MaxX"), tag.getInt("MaxZ"),
-                BlockPos.of(tag.getLong("First")), BlockPos.of(tag.getLong("Second")));
+            RoutingZone zone = new RoutingZone(tag.getInt(TAG_MIN_X),
+                tag.getInt(TAG_MIN_Z),
+                tag.getInt(TAG_MAX_X),
+                tag.getInt(TAG_MAX_Z),
+                BlockPos.of(tag.getLong(TAG_FIRST)),
+                BlockPos.of(tag.getLong(TAG_SECOND)));
             data.zones.add(zone);
-            data.loadHealth(tag, "FirstToSecond", zone.firstEndpoint(), zone.secondEndpoint());
-            data.loadHealth(tag, "SecondToFirst", zone.secondEndpoint(), zone.firstEndpoint());
+            data.loadHealth(tag, TAG_FIRST_TO_SECOND, zone.firstEndpoint(), zone.secondEndpoint());
+            data.loadHealth(tag, TAG_SECOND_TO_FIRST, zone.secondEndpoint(), zone.firstEndpoint());
         }
         return data;
     }
@@ -65,19 +81,23 @@ public final class WaypointPairSavedData extends SavedData
         return zones.stream().filter(zone -> zone.firstEndpoint().equals(pos) || zone.secondEndpoint().equals(pos)).findFirst();
     }
 
-    public Collection<RoutingZone> allZones() { return List.copyOf(zones); }
+    public Collection<RoutingZone> allZones()
+    {
+        return List.copyOf(zones);
+    }
 
     public Collection<RoutingZone> findZonesNear(@Nonnull BlockPos center, int radius)
     {
         int minX = center.getX() - radius, maxX = center.getX() + radius;
         int minZ = center.getZ() - radius, maxZ = center.getZ() + radius;
-        return zones.stream().filter(zone -> zone.maxX() >= minX && zone.minX() <= maxX
-            && zone.maxZ() >= minZ && zone.minZ() <= maxZ).toList();
+        return zones.stream()
+            .filter(zone -> zone.maxX() >= minX && zone.minX() <= maxX && zone.maxZ() >= minZ && zone.minZ() <= maxZ)
+            .toList();
     }
 
     /**
-     * Returns zones that can overlap a path search. The start-to-destination rectangle is expanded
-     * by the job's search range so detours considered by the pathfinder remain covered.
+     * Returns zones that can overlap a path search. The start-to-destination rectangle is expanded by the job's search range so
+     * detours considered by the pathfinder remain covered.
      */
     public Collection<RoutingZone> findZonesForPath(@Nonnull BlockPos start, @Nonnull BlockPos destination, int range)
     {
@@ -86,8 +106,9 @@ public final class WaypointPairSavedData extends SavedData
         int maxX = addClamped(Math.max(start.getX(), destination.getX()), margin);
         int minZ = subtractClamped(Math.min(start.getZ(), destination.getZ()), margin);
         int maxZ = addClamped(Math.max(start.getZ(), destination.getZ()), margin);
-        return zones.stream().filter(zone -> zone.maxX() >= minX && zone.minX() <= maxX
-            && zone.maxZ() >= minZ && zone.minZ() <= maxZ).toList();
+        return zones.stream()
+            .filter(zone -> zone.maxX() >= minX && zone.minX() <= maxX && zone.maxZ() >= minZ && zone.minZ() <= maxZ)
+            .toList();
     }
 
     private static int subtractClamped(int value, int amount)
@@ -100,15 +121,26 @@ public final class WaypointPairSavedData extends SavedData
         return (int) Math.min(Integer.MAX_VALUE, (long) value + amount);
     }
 
+    @SuppressWarnings("null")
     public Optional<WaypointRoutePlan> selectRoute(@Nonnull BlockPos start, @Nonnull BlockPos destination)
     {
         if (start.equals(destination)) return Optional.empty();
         return zones.stream()
             .filter(zone -> !zone.contains(destination))
-            .filter(zone -> RoutingZoneMath.segmentIntersectsBox(
-                start.getX(), start.getY(), start.getZ(), destination.getX(), destination.getY(), destination.getZ(),
-                zone.minX(), zone.minY(), zone.minZ(), zone.maxX(), zone.maxY(), zone.maxZ()))
-            .map(zone -> routeFor(zone, start, destination)).flatMap(Optional::stream)
+            .filter(zone -> RoutingZoneMath.segmentIntersectsBox(start.getX(),
+                start.getY(),
+                start.getZ(),
+                destination.getX(),
+                destination.getY(),
+                destination.getZ(),
+                zone.minX(),
+                zone.minY(),
+                zone.minZ(),
+                zone.maxX(),
+                zone.maxY(),
+                zone.maxZ()))
+            .map(zone -> routeFor(zone, start, destination))
+            .flatMap(Optional::stream)
             .min(Comparator.comparingDouble(WaypointRoutePlan::estimatedDistance));
     }
 
@@ -127,9 +159,18 @@ public final class WaypointPairSavedData extends SavedData
         }
         if (startSide == 0 || destinationSide == 0 || Math.signum(startSide) == Math.signum(destinationSide)) return Optional.empty();
         BlockPos entrance = startSide < 0 ? first : second, exit = startSide < 0 ? second : first;
-        double order = RoutingZoneMath.intersectionOrder(
-            start.getX(), start.getY(), start.getZ(), destination.getX(), destination.getY(), destination.getZ(),
-            zone.minX(), zone.minY(), zone.minZ(), zone.maxX(), zone.maxY(), zone.maxZ());
+        double order = RoutingZoneMath.intersectionOrder(start.getX(),
+            start.getY(),
+            start.getZ(),
+            destination.getX(),
+            destination.getY(),
+            destination.getZ(),
+            zone.minX(),
+            zone.minY(),
+            zone.minZ(),
+            zone.maxX(),
+            zone.maxY(),
+            zone.maxZ());
         return Optional.of(new WaypointRoutePlan(entrance, exit, destination, order, false));
     }
 
@@ -138,58 +179,83 @@ public final class WaypointPairSavedData extends SavedData
         return health.getOrDefault(new DirectionKey(from.asLong(), to.asLong()), WaypointPairDirectionHealth.UNKNOWN);
     }
 
+    @SuppressWarnings("null")
     public RoutingZoneSnapshot snapshot(RoutingZone zone)
     {
-        return new RoutingZoneSnapshot(zone, health(zone.firstEndpoint(), zone.secondEndpoint()), health(zone.secondEndpoint(), zone.firstEndpoint()));
+        return new RoutingZoneSnapshot(zone,
+            health(zone.firstEndpoint(), zone.secondEndpoint()),
+            health(zone.secondEndpoint(), zone.firstEndpoint()));
     }
 
-    public void recordValidation(BlockPos from, BlockPos to, WaypointPairDirectionStatus status, WaypointPairFailureReason reason, long validatedAt)
+    public void recordValidation(BlockPos from,
+        BlockPos to,
+        WaypointPairDirectionStatus status,
+        WaypointPairFailureReason reason,
+        long validatedAt)
     {
-        if (zones.stream().noneMatch(zone -> zone.firstEndpoint().equals(from) && zone.secondEndpoint().equals(to)
-            || zone.secondEndpoint().equals(from) && zone.firstEndpoint().equals(to))) return;
+        if (zones.stream()
+            .noneMatch(zone -> zone.firstEndpoint().equals(from) && zone.secondEndpoint().equals(to) ||
+                zone.secondEndpoint().equals(from) && zone.firstEndpoint().equals(to)))
+            return;
         health.put(new DirectionKey(from.asLong(), to.asLong()), new WaypointPairDirectionHealth(status, reason, validatedAt));
         setDirty();
     }
 
     private boolean overlaps(RoutingZone candidate)
     {
-        return zones.stream().anyMatch(zone -> candidate.minX() <= zone.maxX() && candidate.maxX() >= zone.minX()
-            && candidate.minZ() <= zone.maxZ() && candidate.maxZ() >= zone.minZ());
+        return zones.stream()
+            .anyMatch(zone -> candidate.minX() <= zone.maxX() && candidate.maxX() >= zone.minX() &&
+                candidate.minZ() <= zone.maxZ() &&
+                candidate.maxZ() >= zone.minZ());
     }
 
-    @Override public CompoundTag save(@Nonnull CompoundTag root, @Nonnull HolderLookup.Provider registries)
+    @Override
+    public CompoundTag save(@Nonnull CompoundTag root, @Nonnull HolderLookup.Provider registries)
     {
         ListTag list = new ListTag();
         for (RoutingZone zone : zones)
         {
             CompoundTag tag = new CompoundTag();
-            tag.putInt("MinX", zone.minX()); tag.putInt("MinZ", zone.minZ());
-            tag.putInt("MaxX", zone.maxX()); tag.putInt("MaxZ", zone.maxZ());
-            tag.putLong("First", zone.firstEndpoint().asLong()); tag.putLong("Second", zone.secondEndpoint().asLong());
-            saveHealth(tag, "FirstToSecond", zone.firstEndpoint(), zone.secondEndpoint());
-            saveHealth(tag, "SecondToFirst", zone.secondEndpoint(), zone.firstEndpoint());
+            tag.putInt(TAG_MIN_X, zone.minX());
+            tag.putInt(TAG_MIN_Z, zone.minZ());
+            tag.putInt(TAG_MAX_X, zone.maxX());
+            tag.putInt(TAG_MAX_Z, zone.maxZ());
+            tag.putLong(TAG_FIRST, zone.firstEndpoint().asLong());
+            tag.putLong(TAG_SECOND, zone.secondEndpoint().asLong());
+            saveHealth(tag, TAG_FIRST_TO_SECOND, zone.firstEndpoint(), zone.secondEndpoint());
+            saveHealth(tag, TAG_SECOND_TO_FIRST, zone.secondEndpoint(), zone.firstEndpoint());
             list.add(tag);
         }
-        root.put("Zones", list);
+        root.put(TAG_ZONES, list);
         return root;
     }
 
-    private void saveHealth(CompoundTag parent, String name, BlockPos from, BlockPos to)
+    @SuppressWarnings("null")
+    private void saveHealth(CompoundTag parent, @Nonnull String name, BlockPos from, BlockPos to)
     {
         WaypointPairDirectionHealth value = health(from, to);
         CompoundTag tag = new CompoundTag();
-        tag.putString("Status", value.status().name()); tag.putString("Reason", value.reason().name()); tag.putLong("ValidatedAt", value.validatedAt());
+        tag.putString(TAG_STATUS, value.status().name());
+        tag.putString(TAG_REASON, value.reason().name());
+        tag.putLong(TAG_VALIDATED_AT, value.validatedAt());
         parent.put(name, tag);
     }
 
-    private void loadHealth(CompoundTag parent, String name, BlockPos from, BlockPos to)
+    private void loadHealth(CompoundTag parent, @Nonnull String name, BlockPos from, BlockPos to)
     {
         if (!parent.contains(name, Tag.TAG_COMPOUND)) return;
         CompoundTag tag = parent.getCompound(name);
-        try { health.put(new DirectionKey(from.asLong(), to.asLong()), new WaypointPairDirectionHealth(
-            WaypointPairDirectionStatus.valueOf(tag.getString("Status")), WaypointPairFailureReason.valueOf(tag.getString("Reason")), tag.getLong("ValidatedAt"))); }
-        catch (IllegalArgumentException ignored) {}
+        try
+        {
+            health.put(new DirectionKey(from.asLong(), to.asLong()),
+                new WaypointPairDirectionHealth(WaypointPairDirectionStatus.valueOf(tag.getString(TAG_STATUS)),
+                    WaypointPairFailureReason.valueOf(tag.getString(TAG_REASON)),
+                    tag.getLong(TAG_VALIDATED_AT)));
+        }
+        catch (IllegalArgumentException ignored)
+        {}
     }
 
-    private record DirectionKey(long from, long to) {}
+    private record DirectionKey(long from, long to)
+    {}
 }
