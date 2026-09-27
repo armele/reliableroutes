@@ -3,6 +3,7 @@
     "#domum_ornamentum:default",
     "minecraft:grass_block",
     "minecraft:glowstone",
-    "minecraft:sand"
+    "minecraft:sand",
+    "minecraft:gravel"
   ]
 }

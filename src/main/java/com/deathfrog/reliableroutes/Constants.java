@@ -6,6 +6,7 @@ public final class Constants
     public static final String MOD_ID = "reliableroutes";
 
     public static final String RELIABLEROUTES_ROAD_ID = "reliableroutes_road";
+    public static final String RELIABLEROUTES_STAIR_ID = "reliableroutes_stair";
     public static final String FORBIDDEN_GROUND_ID = "forbidden_ground";
     public static final String FORBIDDEN_GROUND_CURB_ID = "forbidden_ground_curb";
     public static final String PATHFINDER_LENS_ID = "pathfinder_lens";
@@ -15,6 +16,10 @@ public final class Constants
 
     public static final String ROUTING_BLOCKS_GROUP_ID = "routing_blocks";
     public static final String ROUTING_BLOCK_MATERIALS_TAG_ID = "routing_block_materials";
+    public static final String PATHING_TAG_ID = "pathing";
+    public static final String FORBIDDEN_GROUND_TAG_ID = "forbidden_ground";
+    public static final String RELIABLE_ROUTES_NAVIGATOR_TAG_ID = "uses_reliable_routes_navigator";
+    public static final String TRAVERSE_FORBIDDEN_GROUND_TAG_ID = "traverse_forbidden_ground";
     public static final String DEFAULT_MATERIAL_TEXTURE = "block/stone_bricks";
     public static final String DEFAULT_TOP_TEXTURE = "block/gold_block";
 

@@ -1,1 +1,6 @@
-{"replace":false,"values":["reliableroutes:forbidden_ground","reliableroutes:forbidden_ground_curb"]}
+{
+    "replace": false,
+    "values": [
+        "#reliableroutes:forbidden_ground"
+    ]
+}

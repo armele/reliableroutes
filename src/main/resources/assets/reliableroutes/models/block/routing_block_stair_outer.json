@@ -1,0 +1,8 @@
+{
+  "parent":"minecraft:block/block",
+  "textures":{"material":"minecraft:block/stone_bricks","particle":"#material"},
+  "elements":[
+    {"from":[0,0,0],"to":[16,8,16],"faces":{"north":{"texture":"#material","cullface":"north"},"east":{"texture":"#material","cullface":"east"},"south":{"texture":"#material","cullface":"south"},"west":{"texture":"#material","cullface":"west"},"up":{"texture":"#material"},"down":{"texture":"#material","cullface":"down"}}},
+    {"from":[8,8,8],"to":[16,15,16],"faces":{"north":{"texture":"#material"},"east":{"texture":"#material","cullface":"east"},"south":{"texture":"#material","cullface":"south"},"west":{"texture":"#material"},"up":{"texture":"#material"},"down":{"texture":"#material"}}}
+  ]
+}

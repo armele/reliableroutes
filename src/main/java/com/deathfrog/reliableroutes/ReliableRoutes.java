@@ -2,16 +2,18 @@ package com.deathfrog.reliableroutes;
 
 import com.deathfrog.reliableroutes.block.RoutingBlock;
 import com.deathfrog.reliableroutes.block.ForbiddenGroundCurbBlock;
+import com.deathfrog.reliableroutes.block.ForbiddenGroundBlock;
 import com.deathfrog.reliableroutes.block.PathPairBlock;
 import com.deathfrog.reliableroutes.block.RoadRoutingBlock;
+import com.deathfrog.reliableroutes.block.ReliableRoutesStairBlock;
 import com.deathfrog.reliableroutes.item.PathfinderLensItem;
 import com.deathfrog.reliableroutes.item.RoutingBlockItem;
 import com.deathfrog.reliableroutes.navigation.ReliableRoutesPathNavigate;
-import com.minecolonies.api.entity.citizen.AbstractEntityCitizen;
 import com.minecolonies.api.entity.pathfinding.registry.IPathNavigateRegistry;
 import com.mojang.logging.LogUtils;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.item.CreativeModeTab;
 import net.minecraft.world.item.Item;
 import com.deathfrog.reliableroutes.network.ReliableRoutesNetwork;
@@ -39,13 +41,19 @@ public class ReliableRoutes
     public static final DeferredRegister<CreativeModeTab> TABS = DeferredRegister.create(Registries.CREATIVE_MODE_TAB, MODID);
 
     public static final DeferredBlock<RoadRoutingBlock> RELIABLEROUTES_ROAD = roadRoutingBlock(Constants.RELIABLEROUTES_ROAD_ID);
-    public static final DeferredBlock<RoutingBlock> FORBIDDEN_GROUND = routingBlock(Constants.FORBIDDEN_GROUND_ID);
+    public static final DeferredBlock<ReliableRoutesStairBlock> RELIABLEROUTES_STAIR =
+        BLOCKS.register(Constants.RELIABLEROUTES_STAIR_ID, ReliableRoutesStairBlock::new);
+    public static final DeferredBlock<ForbiddenGroundBlock> FORBIDDEN_GROUND =
+        BLOCKS.register(Constants.FORBIDDEN_GROUND_ID, ForbiddenGroundBlock::new);
     public static final DeferredBlock<ForbiddenGroundCurbBlock> FORBIDDEN_GROUND_CURB =
         BLOCKS.register(Constants.FORBIDDEN_GROUND_CURB_ID, ForbiddenGroundCurbBlock::new);
     public static final DeferredBlock<PathPairBlock> PATH_PAIR = BLOCKS.register(Constants.PATH_PAIR_ID, PathPairBlock::new);
 
     public static final DeferredItem<RoutingBlockItem> RELIABLEROUTES_ROAD_ITEM =
         routingItem(Constants.RELIABLEROUTES_ROAD_ID, RELIABLEROUTES_ROAD);
+    public static final DeferredItem<RoutingBlockItem> RELIABLEROUTES_STAIR_ITEM =
+        ITEMS.register(Constants.RELIABLEROUTES_STAIR_ID,
+            () -> new RoutingBlockItem(RELIABLEROUTES_STAIR.get(), new Item.Properties()));
     public static final DeferredItem<RoutingBlockItem> FORBIDDEN_GROUND_ITEM =
         routingItem(Constants.FORBIDDEN_GROUND_ID, FORBIDDEN_GROUND);
     public static final DeferredItem<RoutingBlockItem> FORBIDDEN_GROUND_CURB_ITEM =
@@ -64,6 +72,7 @@ public class ReliableRoutes
             .displayItems((parameters, output) -> {
                 output.accept(PATHFINDER_LENS.get());
                 output.accept(RELIABLEROUTES_ROAD_ITEM.get());
+                output.accept(RELIABLEROUTES_STAIR_ITEM.get());
                 output.accept(FORBIDDEN_GROUND_ITEM.get());
                 output.accept(FORBIDDEN_GROUND_CURB_ITEM.get());
                 output.accept(PATH_PAIR_ITEM.get());
@@ -80,19 +89,31 @@ public class ReliableRoutes
         modEventBus.addListener(ReliableRoutesNetwork::register);
     }
 
+    @SuppressWarnings("null")
     private void commonSetup(@Nonnull FMLCommonSetupEvent event)
     {
-        event.enqueueWork(() -> {
-            IPathNavigateRegistry.getInstance().registerNewPathNavigate(
-                mob -> ReliableRoutesConfig.isCustomPathfindingEnabled() && mob instanceof AbstractEntityCitizen,
-                mob -> new ReliableRoutesPathNavigate(mob, mob.level()));
-            LOGGER.info("Registered config-controlled Reliable Routes navigator for MineColonies citizens");
+        event.enqueueWork(() ->
+        {
+            IPathNavigateRegistry.getInstance()
+                .registerNewPathNavigate(
+                    mob -> ReliableRoutesConfig.isCustomPathfindingEnabled() &&
+                        mob.getType().is(ReliableRoutesTags.USES_RELIABLE_ROUTES_NAVIGATOR),
+                    ReliableRoutes::createPathNavigator);
+
+            LOGGER.info("Registered config-controlled, entity-tag-driven Reliable Routes navigator");
         });
     }
 
-    private static DeferredBlock<RoutingBlock> routingBlock(@Nonnull String id)
+    @SuppressWarnings("null")
+    private static ReliableRoutesPathNavigate createPathNavigator(Mob mob)
     {
-        return BLOCKS.register(id, RoutingBlock::new);
+        ReliableRoutesPathNavigate navigator = new ReliableRoutesPathNavigate(mob, mob.level());
+        if (mob.getType().is(ReliableRoutesTags.TRAVERSE_FORBIDDEN_GROUND))
+        {
+            // TODO: Once MineColonies supports state-aware danger exceptions, configure this navigator's
+            // PathingOptions to pass danger only when the candidate state is in ReliableRoutesTags.FORBIDDEN_GROUND.
+        }
+        return navigator;
     }
 
     private static DeferredBlock<RoadRoutingBlock> roadRoutingBlock(@Nonnull String id)

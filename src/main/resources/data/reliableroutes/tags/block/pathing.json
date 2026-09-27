@@ -1,0 +1,7 @@
+{
+  "replace": false,
+  "values": [
+    "reliableroutes:reliableroutes_road",
+    "reliableroutes:reliableroutes_stair"
+  ]
+}

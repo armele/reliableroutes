@@ -2,6 +2,7 @@
   "itemGroup.reliableroutes": "Reliable Routes",
   "cuttergroup.reliableroutes.routing_blocks": "Routing Blocks",
   "block.reliableroutes.reliableroutes_road": "Reliable Routes Road",
+  "block.reliableroutes.reliableroutes_stair": "Reliable Routes Stair",
   "block.reliableroutes.forbidden_ground": "Forbidden Ground",
   "block.reliableroutes.forbidden_ground_curb": "Forbidden Ground Curb",
   "block.reliableroutes.path_pair": "Path Pair",
