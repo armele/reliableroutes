@@ -127,7 +127,10 @@ public class ReliableRoutesPathNavigate extends MinecoloniesAdvancedPathNavigate
             activeStageResult.getStatus() == PathFindingStatus.CALCULATION_COMPLETE &&
             !activeStageResult.isPathReachingDestination())
         {
-            if (!activeRoute.plan().escapingZone())
+            // Directional health describes only the path between the paired endpoints. A failure
+            // while approaching the entrance or continuing beyond the exit says nothing about
+            // whether the paired segment itself is traversable.
+            if (!activeRoute.plan().escapingZone() && activeRoute.stage() == RouteStage.TO_EXIT)
                 recordHealth(activeRoute.plan(), WaypointPairDirectionStatus.BROKEN, WaypointPairFailureReason.NO_PATH);
             fallBackToDestination();
             return;

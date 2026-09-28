@@ -87,7 +87,7 @@ description='''${mod_description}'''
 [[dependencies.${mod_id}]]
     modId="minecolonies"
     type="required"
-    versionRange="[${minecolonies_version},)"
+    versionRange="${minecolonies_version_range}"
     ordering="AFTER"
     side="BOTH"
 
